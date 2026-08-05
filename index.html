@@ -1680,7 +1680,14 @@
                                                                                 @change="resetStockName(item)"
                                                                                 @keyup.enter="editIndex = null; resetStockName(item);"
                                                                                 type="text"
-                                                                                class="edit-input !text-left !bg-[#faf9f5] !border-[#e5e0d8] !w-24">
+                                                                                class="edit-input !text-left !bg-[#faf9f5] !border-[#e5e0d8] !w-24"
+                                                                                placeholder="代號">
+                                                                            <input v-model="item.name"
+                                                                                @change="saveData"
+                                                                                @keyup.enter="editIndex = null; saveData();"
+                                                                                type="text"
+                                                                                class="edit-input !text-left !bg-[#faf9f5] !border-[#e5e0d8] !w-24 text-xs"
+                                                                                placeholder="名稱">
                                                                             <select v-if="traders.length > 1"
                                                                                 v-model="item.owner"
                                                                                 class="edit-input !text-left !bg-[#faf9f5] !border-[#e5e0d8] !w-24 text-[10px] text-violet-600">
@@ -1693,8 +1700,25 @@
                                                                     <td class="text-center">
                                                                         <div v-if="editIndex === index"
                                                                             class="flex flex-col gap-1 items-center">
-                                                                            <div
-                                                                                class="font-900 text-blue-600 text-base leading-tight">
+                                                                            <div class="flex items-center gap-1">
+                                                                                <input type="checkbox" :id="'manual-price-' + index" v-model="item.isManualPrice" @change="saveData(); fetchStockInfo(item);" class="w-3 h-3 accent-[#5c544d]">
+                                                                                <label :for="'manual-price-' + index" class="text-[9px] font-bold text-[#8a817c] cursor-pointer whitespace-nowrap">手動現價</label>
+                                                                            </div>
+                                                                            <div v-if="item.isManualPrice" class="mt-0.5">
+                                                                                <select v-model="item.currency" @change="saveData(); fetchStockInfo(item);" class="edit-input !bg-[#faf9f5] !border-[#e5e0d8] text-[9px] py-0.5 px-1 font-bold text-[#5c544d]">
+                                                                                    <option value="TWD">TWD (台幣)</option>
+                                                                                    <option value="USD">USD (美金)</option>
+                                                                                </select>
+                                                                            </div>
+                                                                            <div v-if="item.isManualPrice" class="flex items-center gap-0.5">
+                                                                                <input v-model.number="item.originalPrice"
+                                                                                    @change="saveData(); fetchStockInfo(item);" type="number"
+                                                                                    @keyup.enter="fetchStockInfo(item); editIndex = null;"
+                                                                                    step="any"
+                                                                                    class="edit-input w-20 bg-[#faf9f5] border border-[#e5e0d8] text-blue-600 font-bold text-center"
+                                                                                    placeholder="現價">
+                                                                            </div>
+                                                                            <div v-else class="font-900 text-blue-600 text-base leading-tight">
                                                                                 <div v-if="item.currentPrice">
                                                                                     <span
                                                                                         :class="item.status === 'error' ? 'text-[#c38d8d]' : 'text-blue-600'">
@@ -1708,12 +1732,11 @@
                                                                                         }}
                                                                                     </span>
                                                                                 </div>
-                                                                                <span v-else
-                                                                                    class="text-slate-300">---</span>
+                                                                                <span v-else class="text-slate-300">---</span>
                                                                             </div>
                                                                             <input v-model.number="item.avgPrice"
-                                                                                @change="saveData" type="number"
-                                                                                @keyup.enter="editIndex = null; saveData();"
+                                                                                @change="saveData(); fetchStockInfo(item);" type="number"
+                                                                                @keyup.enter="fetchStockInfo(item); editIndex = null;"
                                                                                 step="any"
                                                                                 class="edit-input w-20 bg-[#faf9f5] border border-[#e5e0d8] text-[#8b9d83]"
                                                                                 placeholder="成本">
@@ -1908,9 +1931,10 @@
                                                                                 交易
                                                                             </button>
                                                                             <button
-                                                                                @click="editIndex = (editIndex === index ? null : index)"
-                                                                                class="w-6 h-6 rounded flex items-center justify-center bg-[#f0ebe1] text-[#8a817c] hover:bg-[#faf9f5] hover:text-[#5c544d] hover:border shadow-sm border-transparent transition-all">{{
-                                                                                editIndex === index ? '' : '✎'
+                                                                                @click="if (editIndex === index) { fetchStockInfo(item); editIndex = null; } else { editIndex = index; }"
+                                                                                :class="editIndex === index ? 'bg-[#faf9f5] text-[#5c544d] border-[#e5e0d8]' : 'bg-[#f0ebe1] text-[#8a817c] hover:bg-[#faf9f5] hover:text-[#5c544d]'"
+                                                                                class="w-6 h-6 rounded flex items-center justify-center border shadow-sm border-transparent transition-all">{{
+                                                                                editIndex === index ? '✓' : '✎'
                                                                                 }}</button>
                                                                             <button @click="removeStock(index)"
                                                                                 class="w-6 h-6 rounded flex items-center justify-center bg-[#f0ebe1] text-[#8a817c] hover:bg-[#f8f1f1] hover:text-[#c38d8d] hover:border shadow-sm border-transparent transition-all">✕</button>
@@ -2332,7 +2356,7 @@
                                                                                             class="w-6 h-6 rounded flex items-center justify-center bg-[#f0ebe1] text-[#a89f91] hover:bg-[#faf9f5] hover:text-[#8b9d83] hover:shadow-sm transition-all text-xs">✎</button>
                                                                                         <button v-else
                                                                                             @click="saveLog()"
-                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#8b9d83] text-white hover:bg-emerald-600 shadow-sm transition-all text-xs"></button>
+                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#faf9f5] text-[#5c544d] border border-[#e5e0d8] hover:bg-white shadow-sm transition-all text-xs">✓</button>
 
                                                                                         <button
                                                                                             @click="removeDeposit(depositLogs.indexOf(log))"
@@ -2518,7 +2542,7 @@
                                                                                             class="w-6 h-6 rounded flex items-center justify-center bg-[#f0ebe1] text-[#a89f91] hover:bg-[#faf9f5] hover:text-[#5c544d] hover:shadow-sm transition-all text-xs">✎</button>
                                                                                         <button v-else
                                                                                             @click="saveLog()"
-                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#5c544d] text-white hover:bg-indigo-600 shadow-sm transition-all text-xs"></button>
+                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#faf9f5] text-[#5c544d] border border-[#e5e0d8] hover:bg-white shadow-sm transition-all text-xs">✓</button>
 
                                                                                         <button
                                                                                             @click="removeDeposit(depositLogs.indexOf(log))"
@@ -2739,7 +2763,7 @@
                                                                                             class="w-6 h-6 rounded flex items-center justify-center bg-[#f0ebe1] text-[#a89f91] hover:bg-[#faf9f5] hover:text-[#c38d8d] hover:shadow-sm transition-all text-xs">✎</button>
                                                                                         <button v-else
                                                                                             @click="saveLog()"
-                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#c38d8d] text-white hover:bg-rose-600 shadow-sm transition-all text-xs"></button>
+                                                                                            class="w-6 h-6 rounded flex items-center justify-center bg-[#faf9f5] text-[#5c544d] border border-[#e5e0d8] hover:bg-white shadow-sm transition-all text-xs">✓</button>
 
                                                                                         <button
                                                                                             @click="removeDeposit(depositLogs.indexOf(log))"
@@ -5925,6 +5949,19 @@
                                                         this.marketDataLoading = false;
                                                     },
                                                     async fetchStockInfo(stock) {
+                                                        if (stock.isManualPrice) {
+                                                            stock.status = 'ok';
+                                                            stock.errorMsg = '';
+                                                            if (stock.originalPrice == null) {
+                                                                stock.originalPrice = stock.currentPrice || 0;
+                                                            }
+                                                            stock.currentPrice = this.normalizeToActiveCurrency(stock.originalPrice, stock.currency || 'TWD');
+                                                            if (!stock.name || stock.name === 'SYNC...') {
+                                                                stock.name = stock.code || '未上市股票';
+                                                            }
+                                                            this.saveData();
+                                                            return;
+                                                        }
                                                         if (String(stock.code || '').trim().toUpperCase() === 'AU9901') {
                                                             stock.name = '臺銀金 (黃金現貨)';
                                                             try {
@@ -6636,6 +6673,29 @@ ${actionType} ${stock.name}
                                                         const totalCost = this.getStockTotalCost(item);
                                                         return (((marketValue - totalCost) / totalCost) * 100).toFixed(1);
                                                     },
+                                                    applyCloudData(data) {
+                                                         if (data.version === 2 && data.storage) {
+                                                             Object.keys(data.storage).forEach(k => {
+                                                                 if (k === 'f_cash' || k.startsWith('f_cash_') || k === 'f_traders' || k.startsWith('f_traders_')) return;
+                                                                 localStorage.setItem(k, data.storage[k]);
+                                                             });
+                                                             localStorage.setItem('f_download_success_trigger', 'true');
+                                                             window.location.reload();
+                                                         } else {
+                                                             // 舊版單一帳戶格式相容
+                                                             if (data.stocks) localStorage.setItem("f_data", JSON.stringify(data.stocks));
+                                                             if (data.depositLogs) localStorage.setItem("f_deps", JSON.stringify(data.depositLogs));
+                                                             if (data.reconcileForm) localStorage.setItem("f_reconcile", JSON.stringify(data.reconcileForm));
+                                                             if (data.indices) {
+                                                                 const old = JSON.parse(localStorage.getItem("f_indices") || "{}");
+                                                                 localStorage.setItem("f_indices", JSON.stringify(Object.assign(old, data.indices)));
+                                                             }
+                                                             if (data.manualBias !== undefined) localStorage.setItem("f_manual_bias", data.manualBias);
+                                                             if (data.usdtwdRate) localStorage.setItem("f_usdtwd_rate", data.usdtwdRate);
+                                                             localStorage.setItem('f_download_success_trigger', 'true');
+                                                             window.location.reload();
+                                                         }
+                                                     },
                                                     handleSave() {
                                                         if (!this.form.code) return;
 
@@ -6898,6 +6958,7 @@ ${actionType} ${stock.name}
                                                                 if (k === 'f_cash' || k.startsWith('f_cash_') || k === 'f_traders' || k.startsWith('f_traders_')) return;
                                                                 localStorage.setItem(k, data.storage[k]);
                                                             });
+                                                            localStorage.setItem('f_download_success_trigger', 'true');
                                                             window.location.reload();
                                                         } else {
                                                             // 舊版單一帳戶格式相容
@@ -6910,6 +6971,7 @@ ${actionType} ${stock.name}
                                                             }
                                                             if (data.manualBias !== undefined) localStorage.setItem("f_manual_bias", data.manualBias);
                                                             if (data.usdtwdRate) localStorage.setItem("f_usdtwd_rate", data.usdtwdRate);
+                                                            localStorage.setItem('f_download_success_trigger', 'true');
                                                             window.location.reload();
                                                         }
                                                     },
@@ -7053,6 +7115,10 @@ ${actionType} ${stock.name}
                                                     }
                                                 },
                                                 mounted() {
+                                                    if (localStorage.getItem('f_download_success_trigger') === 'true') {
+                                                        this.showToast('雲端下載成功！');
+                                                        localStorage.removeItem('f_download_success_trigger');
+                                                    }
                                                     window.addEventListener('resize', () => {
                                                         this.windowHeight = window.innerHeight;
                                                         this.windowWidth = window.innerWidth;
