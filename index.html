@@ -1495,11 +1495,13 @@
                                                                         :class="privacyMode ? 'fa-eye-slash' : 'fa-eye'"></i></button>
                                                             </div>
                                                             <div class="flex items-center gap-2 mt-2">
-                                                                <span v-if="!privacyMode && totalDeposits > 0"
+                                                                <span v-if="!privacyMode"
                                                                     class="text-[14px] font-black px-2.5 py-1 rounded-md"
-                                                                    :class="accountReturnRate >= 0 ? 'bg-[#f8f1f1] text-[#c38d8d]' : 'bg-[#f4f5f1] text-[#8b9d83]'">總報酬:
-                                                                    {{ accountReturnRate >= 0 ? '+' : '' }}{{
-                                                                    accountReturnRate }}%</span>
+                                                                    :class="accountTotalNetProfit >= 0 ? 'bg-[#f8f1f1] text-[#c38d8d]' : 'bg-[#f4f5f1] text-[#8b9d83]'">總淨利:
+                                                                    {{ accountTotalNetProfit >= 0 ? '+' : '' }}{{
+                                                                    accountTotalNetProfit.toLocaleString() }}
+                                                                    <span v-if="totalDeposits > 0" class="text-[11px] opacity-80 ml-1">({{ accountReturnRate >= 0 ? '+' : '' }}{{ accountReturnRate }}%)</span>
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1699,39 +1701,50 @@
                                                                     <td class="text-center">
                                                                         <div v-if="editIndex === index"
                                                                             class="flex flex-col gap-1 items-center">
-                                                                            <div class="flex items-center gap-1">
-                                                                                <input type="checkbox" :id="'manual-price-' + index" v-model="item.isManualPrice" @change="saveData(); fetchStockInfo(item);" class="w-3 h-3 accent-[#5c544d]">
-                                                                                <label :for="'manual-price-' + index" class="text-[9px] font-bold text-[#8a817c] cursor-pointer whitespace-nowrap">手動現價</label>
-                                                                            </div>
-                                                                            <div v-if="item.isManualPrice" class="mt-0.5">
-                                                                                <select v-model="item.currency" @change="saveData(); fetchStockInfo(item);" class="edit-input !bg-[#faf9f5] !border-[#e5e0d8] text-[9px] py-0.5 px-1 font-bold text-[#5c544d]">
-                                                                                    <option value="TWD">TWD (台幣)</option>
-                                                                                    <option value="USD">USD (美金)</option>
-                                                                                </select>
-                                                                            </div>
-                                                                            <div v-if="item.isManualPrice" class="flex items-center gap-0.5">
-                                                                                <input v-model.number="item.originalPrice"
-                                                                                    @change="saveData(); fetchStockInfo(item);" type="number"
-                                                                                    @keyup.enter="fetchStockInfo(item); editIndex = null;"
-                                                                                    step="any"
-                                                                                    class="edit-input w-20 bg-[#faf9f5] border border-[#e5e0d8] text-blue-600 font-bold text-center"
-                                                                                    placeholder="現價">
-                                                                            </div>
-                                                                            <div v-else class="font-900 text-blue-600 text-base leading-tight">
-                                                                                <div v-if="item.currentPrice">
-                                                                                    <span
-                                                                                        :class="item.status === 'error' ? 'text-[#c38d8d]' : 'text-blue-600'">
-                                                                                        {{ item.currency === 'USD' ? '$'
-                                                                                        + (item.originalPrice ||
-                                                                                        (item.currentPrice /
-                                                                                        usdtwdRate)).toFixed(2) :
-                                                                                        (activeAccountCurrency === 'USD'
-                                                                                        ? 'US$ ' : 'NT$ ') +
-                                                                                        item.currentPrice.toLocaleString()
-                                                                                        }}
-                                                                                    </span>
+                                                                            <div v-if="item.assetType !== 'CRYPTO'" class="flex flex-col gap-1 items-center">
+                                                                                <div class="flex items-center gap-1">
+                                                                                    <input type="checkbox" :id="'manual-price-' + index" v-model="item.isManualPrice" @change="saveData(); fetchStockInfo(item);" class="w-3 h-3 accent-[#5c544d]">
+                                                                                    <label :for="'manual-price-' + index" class="text-[9px] font-bold text-[#8a817c] cursor-pointer whitespace-nowrap">手動現價</label>
                                                                                 </div>
-                                                                                <span v-else class="text-slate-300">---</span>
+                                                                                <div v-if="item.isManualPrice" class="mt-0.5">
+                                                                                    <select v-model="item.currency" @change="saveData(); fetchStockInfo(item);" class="edit-input !bg-[#faf9f5] !border-[#e5e0d8] text-[9px] py-0.5 px-1 font-bold text-[#5c544d]">
+                                                                                        <option value="TWD">TWD (台幣)</option>
+                                                                                        <option value="USD">USD (美金)</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                                <div v-if="item.isManualPrice" class="flex items-center gap-0.5">
+                                                                                    <input v-model.number="item.originalPrice"
+                                                                                        @change="saveData(); fetchStockInfo(item);" type="number"
+                                                                                        @keyup.enter="fetchStockInfo(item); editIndex = null;"
+                                                                                        step="any"
+                                                                                        class="edit-input w-20 bg-[#faf9f5] border border-[#e5e0d8] text-blue-600 font-bold text-center"
+                                                                                        placeholder="現價">
+                                                                                </div>
+                                                                                <div v-else class="font-900 text-blue-600 text-base leading-tight">
+                                                                                    <div v-if="item.currentPrice">
+                                                                                        <span
+                                                                                            :class="item.status === 'error' ? 'text-[#c38d8d]' : 'text-blue-600'">
+                                                                                            {{ item.currency === 'USD' ? '$'
+                                                                                            + (item.originalPrice ||
+                                                                                            (item.currentPrice /
+                                                                                            usdtwdRate)).toFixed(2) :
+                                                                                            (activeAccountCurrency === 'USD'
+                                                                                            ? 'US$ ' : 'NT$ ') +
+                                                                                            item.currentPrice.toLocaleString()
+                                                                                            }}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <span v-else class="text-slate-300">---</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div v-else class="flex flex-col gap-1 items-center">
+                                                                                <div class="text-[9px] font-bold text-[#8a817c]">ROI (%)</div>
+                                                                                <input :value="calculateROI(item)"
+                                                                                    @change="item.currentPrice = item.avgPrice * (1 + ($event.target.value / 100)); saveData();" type="number"
+                                                                                    @keyup.enter="item.currentPrice = item.avgPrice * (1 + ($event.target.value / 100)); editIndex = null; saveData();"
+                                                                                    step="any"
+                                                                                    class="edit-input w-20 bg-[#faf9f5] border border-[#e5e0d8] text-emerald-600 font-bold text-center"
+                                                                                    placeholder="ROI(%)">
                                                                             </div>
                                                                             <input v-model.number="item.avgPrice"
                                                                                 @change="saveData(); fetchStockInfo(item);" type="number"
@@ -1743,7 +1756,10 @@
                                                                         <div v-else class="flex flex-col items-center">
                                                                             <div
                                                                                 class="font-900 text-blue-600 text-base leading-tight">
-                                                                                <div v-if="item.currentPrice">
+                                                                                <div v-if="item.assetType === 'CRYPTO'">
+                                                                                    <span class="text-slate-300">N/A</span>
+                                                                                </div>
+                                                                                <div v-else-if="item.currentPrice">
                                                                                     <span
                                                                                         :class="item.status === 'error' ? 'text-[#c38d8d]' : 'text-blue-600'">
                                                                                         {{ item.currency === 'USD' ? '$'
@@ -1774,11 +1790,12 @@
                                                                             </div>
                                                                             <div
                                                                                 class="text-[10px] text-[#a89f91] font-bold mt-0.5">
-                                                                                @ {{ item.currency === 'USD' ? '$' +
+                                                                                <span v-if="item.assetType === 'CRYPTO'">@ N/A</span>
+                                                                                <span v-else>@ {{ item.currency === 'USD' ? '$' +
                                                                                 (item.avgPrice || 0).toLocaleString() :
                                                                                 (activeAccountCurrency === 'USD' ? 'US$'
                                                                                 : 'NT$ ') + (item.avgPrice ||
-                                                                                0).toLocaleString() }}
+                                                                                0).toLocaleString() }}</span>
                                                                             </div>
                                                                         </div>
                                                                     </td>
@@ -1788,7 +1805,7 @@
                                                                             <span
                                                                                 class="text-[#5c544d] font-bold text-xs">
                                                                                 {{ item.currency === 'USD' ? '$' +
-                                                                                (item.ma60 / usdtwdRate).toFixed(2) :
+                                                                                (item.ma60 || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) :
                                                                                 (activeAccountCurrency === 'USD' ? 'US$'
                                                                                 : 'NT$ ') +
                                                                                 Math.round(item.ma60).toLocaleString()
@@ -1945,13 +1962,21 @@
                                                                     <td></td>
                                                                     <td class="pl-2 md:pl-4 py-3">
                                                                         <div class="flex flex-col gap-1">
-                                                                            <input v-model="form.code" type="text"
-                                                                                placeholder="+ 新增代號"
-                                                                                class="edit-input !text-left !bg-[#faf9f5]/80 !w-24 text-[#5c544d] border border-[#e5e0d8]"
-                                                                                @keyup.enter="handleSave">
+                                                                            <div class="flex items-center gap-1">
+                                                                                <select v-model="form.assetType" class="edit-input !bg-[#faf9f5]/80 !text-[#5c544d] border border-[#e5e0d8] !px-1 !py-1 text-[10px] w-[72px]">
+                                                                                    <option value="AUTO">自動判別</option>
+                                                                                    <option value="TW">台股</option>
+                                                                                    <option value="US">美股</option>
+                                                                                    <option value="CRYPTO">加密貨幣</option>
+                                                                                </select>
+                                                                                <input v-model="form.code" type="text"
+                                                                                    placeholder="+ 新增代號"
+                                                                                    class="edit-input !text-left !bg-[#faf9f5]/80 !w-[72px] text-[#5c544d] border border-[#e5e0d8]"
+                                                                                    @keyup.enter="handleSave">
+                                                                            </div>
                                                                             <select v-if="traders.length > 1"
                                                                                 v-model="form.owner"
-                                                                                class="edit-input !text-left !bg-[#faf9f5]/80 !w-24 text-violet-600 border border-[#e5e0d8] text-[10px]">
+                                                                                class="edit-input !text-left !bg-[#faf9f5]/80 w-[148px] text-violet-600 border border-[#e5e0d8] text-[10px]">
                                                                                 <option v-for="t in traders" :value="t">
                                                                                     {{ t }}
                                                                                 </option>
@@ -1962,13 +1987,12 @@
                                                                         <div
                                                                             class="flex flex-col gap-1 items-center mx-auto">
                                                                             <div
-                                                                                class="text-[10px] font-black text-[#a89f91] py-0.5 uppercase tracking-wider">
-                                                                                {{ isFormCodeUsStock ? '成本均價(USD)' :
-                                                                                '成本均價(' + activeAccountCurrency + ')' }}
+                                                                                class="text-[10px] font-black text-[#a89f91] py-0.5 uppercase tracking-wider whitespace-nowrap">
+                                                                                {{ form.assetType === 'CRYPTO' ? '投入本金(USDT)' : (isFormCodeUsStock ? '成本均價(USD)' : '成本均價(' + activeAccountCurrency + ')') }}
                                                                             </div>
                                                                             <input v-model.number="form.avgPrice"
                                                                                 type="number" step="any"
-                                                                                :placeholder="isFormCodeUsStock ? '成本均價(USD)' : '成本均價(' + activeAccountCurrency + ')'"
+                                                                                :placeholder="form.assetType === 'CRYPTO' ? '投入本金(USDT)' : (isFormCodeUsStock ? '成本均價(USD)' : '成本均價(' + activeAccountCurrency + ')')"
                                                                                 class="edit-input w-24 !bg-[#faf9f5]/80 text-[#8b9d83] border border-[#e5e0d8]"
                                                                                 @keyup.enter="handleSave">
                                                                         </div>
@@ -1981,7 +2005,19 @@
                                                                             @keyup.enter="handleSave">
                                                                     </td>
                                                                     <td class="text-center py-3">
-                                                                        <div
+                                                                        <div v-if="form.assetType === 'CRYPTO'"
+                                                                            class="flex flex-col gap-1 items-center mx-auto">
+                                                                            <div
+                                                                                class="text-[10px] font-black text-[#a89f91] py-0.5 uppercase tracking-wider whitespace-nowrap">
+                                                                                當前 ROI (%)
+                                                                            </div>
+                                                                            <input v-model.number="form.roi"
+                                                                                type="number" step="any"
+                                                                                placeholder="例如: 15.5"
+                                                                                class="edit-input w-24 !bg-[#faf9f5]/80 text-emerald-600 border border-[#e5e0d8]"
+                                                                                @keyup.enter="handleSave">
+                                                                        </div>
+                                                                        <div v-else
                                                                             class="flex flex-col gap-1 items-center mx-auto">
                                                                             <div
                                                                                 class="flex bg-[#f0ebe1] p-0.5 rounded-md border border-[#e5e0d8] w-24">
@@ -4289,7 +4325,7 @@
                                                         reconcileForm: safeReconcile,
                                                         globalCosts: {},
                                                         hiddenReconcileAccounts: safeHiddenReconcile,
-                                                        form: { code: '', shares: null, avgPrice: null, targetRatio: null, inputType: 'shares', investAmountTwd: null },
+                                                        form: { code: '', shares: null, avgPrice: null, targetRatio: null, inputType: 'shares', investAmountTwd: null, assetType: 'AUTO', roi: null },
                                                         tradeModal: {
                                                             isOpen: false, stockIndex: null, type: 'BUY',
                                                             date: '', shares: null, price: null, syncCash: true, owner: safeActiveAccountName
@@ -4452,6 +4488,9 @@
                                                         return this.depositLogs.filter(l => !l.type || l.type === 'deposit' || l.type === 'adjustment' || l.type === 'withdraw').reduce((sum, l) => {
                                                             return l.type === 'withdraw' ? sum - l.amount : sum + l.amount;
                                                         }, 0);
+                                                    },
+                                                    accountTotalNetProfit() {
+                                                        return Math.round(this.grandTotalAssets - this.totalDeposits);
                                                     },
                                                     accountReturnRate() {
                                                         const deposits = this.totalDeposits;
@@ -6832,39 +6871,55 @@ ${actionType} ${stock.name}
                                                         if (!this.form.code) return;
 
                                                         let finalShares = this.form.shares;
-                                                        if (this.form.inputType === 'amount') {
-                                                            if (!this.form.investAmountTwd) {
-                                                                alert(`請輸入投資金額(${this.activeAccountCurrency})`);
-                                                                return;
-                                                            }
-                                                            if (!this.form.avgPrice || this.form.avgPrice <= 0) {
-                                                                alert('請輸入大於 0 的平均成本以計算股數');
-                                                                return;
-                                                            }
-                                                            const isUs = this.isFormCodeUsStock;
-                                                            const priceTwd = this.normalizeToActiveCurrency(this.form.avgPrice, this.isFormCodeUsStock ? 'USD' : 'TWD');
-                                                            finalShares = parseFloat((this.form.investAmountTwd / priceTwd).toFixed(4));
-                                                        }
+                                                        let finalAvgPrice = this.form.avgPrice;
+                                                        let computedCurrentPrice = 0;
 
-                                                        if (finalShares === null || isNaN(finalShares) || finalShares <= 0) {
-                                                            alert('請輸入有效的股數或投資金額');
-                                                            return;
+                                                        if (this.form.assetType === 'CRYPTO') {
+                                                            if (!finalAvgPrice || finalAvgPrice <= 0) {
+                                                                alert('請輸入有效的投入本金 (USDT)');
+                                                                return;
+                                                            }
+                                                            if (this.form.roi === null || isNaN(this.form.roi)) {
+                                                                alert('請輸入有效的 ROI (%)');
+                                                                return;
+                                                            }
+                                                            finalShares = 1;
+                                                            computedCurrentPrice = parseFloat((finalAvgPrice * (1 + (this.form.roi / 100))).toFixed(4));
+                                                        } else {
+                                                            if (this.form.inputType === 'amount') {
+                                                                if (!this.form.investAmountTwd) {
+                                                                    alert(`請輸入投資金額(${this.activeAccountCurrency})`);
+                                                                    return;
+                                                                }
+                                                                if (!this.form.avgPrice || this.form.avgPrice <= 0) {
+                                                                    alert('請輸入大於 0 的平均成本以計算股數');
+                                                                    return;
+                                                                }
+                                                                const isUs = this.isFormCodeUsStock;
+                                                                const priceTwd = this.normalizeToActiveCurrency(this.form.avgPrice, this.isFormCodeUsStock ? 'USD' : 'TWD');
+                                                                finalShares = parseFloat((this.form.investAmountTwd / priceTwd).toFixed(4));
+                                                            }
+
+                                                            if (finalShares === null || isNaN(finalShares) || finalShares <= 0) {
+                                                                alert('請輸入有效的股數或投資金額');
+                                                                return;
+                                                            }
                                                         }
 
                                                         const isUs = this.isFormCodeUsStock;
-                                                        const finalAvgPrice = this.form.avgPrice;
 
                                                         const newStock = {
                                                             code: this.form.code.trim().toUpperCase(),
                                                             shares: finalShares,
                                                             avgPrice: finalAvgPrice || 0,
                                                             targetRatio: this.form.targetRatio || 0,
-                                                            currentPrice: 0,
-                                                            name: 'SYNC...',
+                                                            currentPrice: computedCurrentPrice || 0,
+                                                            name: this.form.assetType === 'CRYPTO' ? this.form.code.trim().toUpperCase() : 'SYNC...',
                                                             yahooSymbol: '',
                                                             currency: isUs ? 'USD' : 'TWD',
                                                             owner: this.form.owner || this.activeAccountName,
-                                                            transactions: []
+                                                            transactions: [],
+                                                            assetType: this.form.assetType === 'AUTO' ? (isUs ? 'US' : 'TW') : this.form.assetType
                                                         };
 
                                                         if (finalShares > 0) {
@@ -6878,10 +6933,14 @@ ${actionType} ${stock.name}
                                                         }
 
                                                         this.stocks.push(newStock);
-                                                        this.fetchStockInfo(this.stocks[this.stocks.length - 1]);
+                                                        
+                                                        if (this.form.assetType !== 'CRYPTO') {
+                                                            this.fetchStockInfo(this.stocks[this.stocks.length - 1]);
+                                                        }
 
                                                         const currentInputType = this.form.inputType;
-                                                        this.form = { code: '', shares: null, avgPrice: null, targetRatio: null, inputType: currentInputType, investAmountTwd: null, owner: this.activeAccountName };
+                                                        const currentAssetType = this.form.assetType;
+                                                        this.form = { code: '', shares: null, avgPrice: null, targetRatio: null, inputType: currentInputType, investAmountTwd: null, owner: this.activeAccountName, assetType: currentAssetType, roi: null };
                                                         this.saveData();
                                                     },
                                                     openTradeModal(index) {
@@ -7268,6 +7327,15 @@ ${actionType} ${stock.name}
                                                         localStorage.setItem('f_force_my_cash_zero_v2', 'true');
                                                         console.log('強制初始化主帳戶現金為 0 成功！');
                                                     }
+
+                                                    // Auto-clear 99999999 glitch
+                                                    Object.keys(this.reconcileForm).forEach(t => {
+                                                        if (this.reconcileForm[t].bankCash >= 99999999 || this.reconcileForm[t].bankCash <= -99999999) {
+                                                            this.reconcileForm[t].bankCash = this.getTraderAutoCash(t);
+                                                            this.reconcileForm[t].isManualCash = false;
+                                                        }
+                                                    });
+                                                    this.saveReconcileData();
 
                                                     // Load globalCosts
                                                     try {
