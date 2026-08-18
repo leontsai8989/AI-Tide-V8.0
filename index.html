@@ -1487,8 +1487,7 @@
                                                                     class="text-2xl xl:text-2xl font-900 mono text-[#5c544d] tracking-tight leading-none">
                                                                     <span class="text-xl">{{ activeAccountCurrency ===
                                                                         'USD' ? 'US$' : 'NT$' }}</span> {{ privacyMode ?
-                                                                    '******' : (totalMarketValue +
-                                                                    currentBankCash).toLocaleString() }}
+                                                                    '******' : grandTotalAssets.toLocaleString() }}
                                                                 </p>
                                                                 <button @click="privacyMode = !privacyMode"
                                                                     class="text-[#a89f91] hover:text-[#5c544d] transition-colors ml-auto"><i
@@ -3047,6 +3046,16 @@
                                                                                 class="text-[9px] font-black text-[#8b9d83] hover:text-[#8b9d83] mt-1.5 inline-block underline decoration-emerald-200 underline-offset-2">前往
                                                                                 FinMind 官網免費申請</a>
                                                                         </div>
+                                                                        
+                                                                        <div class="mb-4 border-t border-[#e5e0d8] pt-4">
+                                                                            <label class="block text-xs font-black text-[#8a817c] mb-2">台股手續費折數</label>
+                                                                            <p class="text-[10px] text-[#a89f91] mb-2 leading-relaxed">輸入您的券商手續費折數 (例如 2.8 折請輸入 2.8)。若無折扣請填 10。<br>系統將以此自動計算買賣成本與預估淨值。</p>
+                                                                            <input v-model="feeDiscount" type="number" step="0.1" min="0" max="10"
+                                                                                @change="saveData"
+                                                                                placeholder="預設: 6"
+                                                                                class="w-full bg-[#f0ebe1] border border-[#e5e0d8] rounded-lg px-3 py-2 text-xs font-mono text-[#5c544d] outline-none focus:border-indigo-500 focus:bg-[#faf9f5] transition-all">
+                                                                        </div>
+
                                                                         <div
                                                                             class="flex items-center justify-between pt-2 border-t border-[#e5e0d8]">
                                                                             <span
@@ -3157,6 +3166,34 @@
                                                         </div>
 
                                                     </div>
+
+                                                    <!-- Main Accounts Integration Card (Bottom Full Width) -->
+                                                    <div class="bg-[#faf9f5] border border-[#d6cfc7] rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden mt-4 w-full">
+                                                        <div class="absolute top-0 left-0 w-1 h-full bg-[#d1bfae]"></div>
+                                                        <div class="pl-2">
+                                                            <div class="flex items-center gap-2 mb-1">
+                                                                <h3 class="text-sm font-black text-[#5c544d] tracking-wide">主帳戶資產整合</h3>
+                                                            </div>
+                                                            <p class="text-[10px] text-[#8a817c] font-bold mb-4 leading-relaxed">單純計算您勾選的帳戶（包含當前使用帳戶），並自動連動至總資產規模。</p>
+                                                            <div class="space-y-3">
+                                                                <div v-for="acc in accounts" :key="acc.id" class="flex items-center justify-between border-b border-[#e5e0d8] pb-2 last:border-0 last:pb-0">
+                                                                    <label class="flex items-center gap-2 cursor-pointer">
+                                                                        <input type="checkbox" v-model="integrationChecks[acc.id]" @change="saveData" class="w-4 h-4 text-emerald-500 rounded border-gray-300 focus:ring-emerald-500">
+                                                                        <span class="text-xs font-bold text-[#5c544d]">{{ acc.name }}</span>
+                                                                    </label>
+                                                                    <div class="flex items-center gap-2">
+                                                                        <span class="text-[10px] text-[#a89f91] font-bold">{{ acc.currency === 'USD' ? 'US$' : 'NT$' }}</span>
+                                                                        <span class="w-20 text-right text-xs font-mono font-bold text-[#5c544d]">{{ getAccountAsset(acc).toLocaleString() }}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="flex items-center justify-between pt-2 mt-2 border-t border-[#e5e0d8]">
+                                                                    <span class="text-xs font-black text-[#8b9d83]">整合總額 (TWD)</span>
+                                                                    <span class="text-sm font-mono font-black text-[#5c544d]">NT$ {{ integratedTotalAssets.toLocaleString() }}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
                                                 </div>
                                             </div>
 
@@ -4091,7 +4128,20 @@
                                                     } catch (e) { }
                                                                                   try {
                                                         const rawAccounts = localStorage.getItem("f_accounts");
-                                                        if (rawAccounts) safeAccounts = JSON.parse(rawAccounts);
+                                                        if (rawAccounts) {
+                                                            const parsed = JSON.parse(rawAccounts);
+                                                            let modified = false;
+                                                            parsed.forEach((a, i) => {
+                                                                if (!a.id) {
+                                                                    a.id = a.name === "預設主帳戶" ? "main" : `legacy_${Date.now()}_${i}`;
+                                                                    modified = true;
+                                                                }
+                                                            });
+                                                            if (modified) {
+                                                                localStorage.setItem("f_accounts", JSON.stringify(parsed));
+                                                            }
+                                                            safeAccounts = parsed;
+                                                        }
                                                         const rawActive = localStorage.getItem("f_active_account");
                                                         if (rawActive) safeActiveAccountId = rawActive;
                                                     } catch (e) { }
@@ -4182,7 +4232,21 @@
                                                         if (rawFeeDiscount !== null) safeFeeDiscount = Number(rawFeeDiscount);
                                                     } catch (e) { }
 
+                                                    let safeIntegrationChecks = {};
+                                                    try {
+                                                        const storedChecks = localStorage.getItem('f_integration_checks');
+                                                        if (storedChecks) {
+                                                            safeIntegrationChecks = JSON.parse(storedChecks);
+                                                        }
+                                                    } catch (e) { }
+                                                    safeAccounts.forEach(acc => {
+                                                        if (safeIntegrationChecks[acc.id] === undefined) {
+                                                            safeIntegrationChecks[acc.id] = true;
+                                                        }
+                                                    });
+
                                                     return {
+                                                        integrationChecks: safeIntegrationChecks,
                                                         accounts: safeAccounts,
                                                         activeAccountId: safeActiveAccountId,
                                                         mobileListOpen: { deposit: false, dividend: false, sell: false },
@@ -4338,6 +4402,17 @@
                                                     }
                                                 },
                                                 computed: {
+                                                    integratedTotalAssets() {
+                                                        return Math.round(this.accounts.reduce((sum, acc) => {
+                                                            if (!this.integrationChecks[acc.id]) return sum;
+                                                            let val = this.getAccountAsset(acc);
+                                                            if (acc.currency === 'USD') val *= this.usdtwdRate;
+                                                            return sum + val;
+                                                        }, 0));
+                                                    },
+                                                    grandTotalAssets() {
+                                                        return this.totalMarketValue + this.currentCash;
+                                                    },
                                                     isBotTopHalf() { return this.botPos.bottom > this.windowHeight / 2 - 50; },
                                                     isBotLeftHalf() { return this.botPos.right > this.windowWidth / 2; },
                                                     activeAccountCurrency() {
@@ -4381,7 +4456,7 @@
                                                     accountReturnRate() {
                                                         const deposits = this.totalDeposits;
                                                         if (deposits === 0) return 0;
-                                                        const totalAssets = this.totalMarketValue + this.currentCash;
+                                                        const totalAssets = this.grandTotalAssets;
                                                         return (((totalAssets - deposits) / deposits) * 100).toFixed(1);
                                                     },
                                                     totalSells() {
@@ -4662,7 +4737,7 @@
                                                         const scoreVix = minMaxScale(vixVal, 50.0, 10.0, false);
                                                         const scoreCnn = minMaxScale(cnnVal, 0.0, 100.0, false);
                                                         const scoreQQQ = minMaxScale(qqqBias, -8.0, 12.0, false);
-                                                        const scoreDxy = minMaxScale(dxyBias, -3.0, 3.0, true);
+                                                        const scoreDxy = minMaxScale(dxyBias, -3.0, 3.0, false);
 
                                                         const weightedScore = (scoreQQQ * 0.25) + (scoreDxy * 0.20) + (scoreCnn * 0.30) + (scoreVix * 0.25);
                                                         let total = Math.round(weightedScore);
@@ -4782,13 +4857,18 @@
 
                                                         // 1週前瞻危險氣味訊號 + Heat 分數建議
                                                         const bScore = Math.round(this.twMarketScore.total);
-                                                        const isEarlyWarning = (instTotal < -30 || (this.indices.institutionalForeign || 0) < -20 || usdTwdB > 0.08 || volumeRatio < 90.0 || (this.indices.vix || 20) >= 19.0);
+                                                        const isForeignSelling = instTotal < -30 || (this.indices.institutionalForeign || 0) < -20;
+                                                        const isCurrencyWeak = usdTwdB > 0.08;
+                                                        const isRiskHigh = (this.indices.vix || 20) >= 19.0;
+                                                        
+                                                        // 只有在真的有外資提款或台幣貶值的跡象時，才稱之為外資撤離預警
+                                                        const isEarlyWarning = isForeignSelling && (isCurrencyWeak || isRiskHigh);
 
                                                         if (isEarlyWarning) {
                                                             let adviceCmd, adviceFuture;
                                                             if (bScore >= 75) {
                                                                 adviceCmd = '【高檔警戒】極端過熱，建議逢高調節減碼 15% ~ 20%，提升現金防禦位階';
-                                                                adviceFuture = '市場熱度極高且法人持續提款 (賣超 ' + Math.abs(instTotal) + ' 億)，預期 1 週內面臨獲利回吐拉回壓力。';
+                                                                adviceFuture = '市場熱度極高且法人持續提款，預期 1 週內面臨獲利回吐拉回壓力。';
                                                             } else if (bScore >= 55) {
                                                                 adviceCmd = '【偏熱警戒】資金獲利落袋，建議暫緩追價，並提升 10% 可用現金儲備';
                                                                 adviceFuture = '資金偏熱且台幣趨貶 (' + usdTwdB.toFixed(2) + '%)，預告未來 1 週資金退場觀望風險升高。';
@@ -4805,6 +4885,14 @@
                                                                 future: adviceFuture,
                                                                 action: adviceCmd,
                                                                 iconTheme: 'bg-amber-50 text-amber-700 border-amber-300 shadow-sm animate-pulse'
+                                                            };
+                                                        } else if (instTotal > 100 && bScore <= 45) {
+                                                            return {
+                                                                emoji: '動能',
+                                                                title: '外資狂買強勢軋空，順勢做多',
+                                                                future: '三大法人積極湧入，籌碼面強勢，短線具備上攻動能。',
+                                                                action: '【強勢多頭】順勢加碼，抱牢強勢股，讓利潤奔跑',
+                                                                iconTheme: 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-sm'
                                                             };
                                                         } else if (b > 5.0 && volumeRatio < 80.0 && instTotal < 50) {
                                                             return {
@@ -4863,8 +4951,8 @@
                                                         const instTotal = this.indices.institutionalTotal || 0;
 
                                                         const score0050 = minMaxScale(b, -12.0, 18.0, false);
-                                                        const scoreUsdTwd = minMaxScale(usdTwdB, -3.0, 3.0, true);
-                                                        const scoreInstitutional = minMaxScale(instTotal, -300.0, 300.0, false);
+                                                        const scoreUsdTwd = minMaxScale(usdTwdB, -3.0, 3.0, false);
+                                                        const scoreInstitutional = minMaxScale(instTotal, -300.0, 300.0, true);
                                                         const scoreVolume = minMaxScale(volumeRatio, 40.0, 250.0, false);
 
                                                         const weightedScore = (score0050 * 0.20) + (scoreUsdTwd * 0.15) + (scoreInstitutional * 0.35) + (scoreVolume * 0.30);
@@ -4875,16 +4963,16 @@
                                                         let overrides = null;
 
                                                         // 1週前瞻危險氣味領先預警模組 (Early Danger Warning)
-                                                        const isForeignFleeingEarly = (instTotal < -30 || (this.indices.institutionalForeign || 0) < -20) || usdTwdB > 0.08;
-                                                        const isVixSpiking = (this.indices.vix || 20) >= 19.0;
-                                                        const isHighVolumeShrink = volumeRatio < 90.0;
-                                                        const isEarlyWarning = isForeignFleeingEarly || isVixSpiking || isHighVolumeShrink || instTotal < -50;
+                                                        const isTesting = this.manualBias !== null;
+                                                        const isEndOfWeek = [0, 5, 6].includes(new Date().getDay()) || isTesting; // 限定週五、六、日觸發，或是手動測試模式時放行
+                                                        const isForeignFleeingEarly = (instTotal < -30 || (this.indices.institutionalForeign || 0) < -20) && usdTwdB > 0.08;
+                                                        const isEarlyWarning = (isForeignFleeingEarly || instTotal < -50) && isEndOfWeek;
 
                                                         const isHighLevel = b > 4.0;
                                                         const isDeepOversold = b < -10.0;
                                                         const isVolumeBursting = volumeRatio > 150.0;
 
-                                                        if (isHighLevel && (instTotal < -150 || usdTwdB > 0.5)) {
+                                                        if (isHighLevel && (instTotal < -150 || usdTwdB > 0.5) && isEndOfWeek) {
                                                             total = 90;
                                                             status = '1週前瞻：高檔籌碼撤離 (嚴格避險)';
                                                             colorClass = 'text-[#c38d8d] bg-rose-400/10 border-rose-400/20';
@@ -4915,8 +5003,14 @@
                                                             if (total >= 85) { status = '全面過熱 (留意賣壓)'; colorClass = 'text-[#c38d8d] bg-rose-400/10 border-rose-400/20'; }
                                                             else if (total >= 72) { status = '偏熱警戒 (法人動向)'; colorClass = 'text-[#d1bfae] bg-amber-400/10 border-amber-400/20'; }
                                                             else if (total >= 58) { status = '資金偏熱'; colorClass = 'text-amber-400 bg-amber-300/10 border-amber-300/20'; }
-                                                            else if (total <= 25) { status = '極度恐慌 (超跌買點)'; colorClass = 'text-[#8b9d83] bg-emerald-400/10 border-emerald-400/20'; }
-                                                            else if (total <= 45) { status = '偏冷修正 (承接機會)'; colorClass = 'text-[#8b9d83] bg-emerald-300/10 border-emerald-300/20'; }
+                                                            else if (total <= 25) { 
+                                                                if (instTotal > 100) { status = '強勢軋空 (外資狂買)'; colorClass = 'text-[#8b9d83] bg-emerald-400/10 border-emerald-400/20'; overrides = { trend: '強勢軋空', action: '順勢做多' }; }
+                                                                else { status = '極度恐慌 (超跌買點)'; colorClass = 'text-[#8b9d83] bg-emerald-400/10 border-emerald-400/20'; }
+                                                            }
+                                                            else if (total <= 45) { 
+                                                                if (instTotal > 50) { status = '溫和偏多 (法人買超)'; colorClass = 'text-[#8b9d83] bg-emerald-300/10 border-emerald-300/20'; overrides = { trend: '溫和偏多', action: '順勢做多' }; }
+                                                                else { status = '偏冷修正 (承接機會)'; colorClass = 'text-[#8b9d83] bg-emerald-300/10 border-emerald-300/20'; }
+                                                            }
                                                             else if (total >= 46 && total <= 57 && instTotal < -50) { status = '受壓制拉低'; colorClass = 'text-[#8a817c] bg-slate-400/10 border-slate-400/20'; }
                                                         }
 
@@ -5206,6 +5300,37 @@
                                                     }
                                                 },
                                                 methods: {
+                                                    getAccountAsset(acc) {
+                                                        if (acc.id == this.activeAccountId) {
+                                                            return this.totalMarketValue + this.currentCash;
+                                                        }
+                                                        const getStoreKey = (key) => acc.id == 'main' ? key : `${key}_${acc.id}`;
+                                                        let marketVal = 0;
+                                                        try { 
+                                                            const stocks = JSON.parse(localStorage.getItem(getStoreKey('f_data'))) || []; 
+                                                            marketVal = stocks.reduce((sum, s) => {
+                                                                let shares = parseFloat(s.shares) || 0;
+                                                                let price = parseFloat(s.currentPrice) || parseFloat(s.originalPrice) || parseFloat(s.avgPrice) || 0;
+                                                                return sum + (shares * price);
+                                                            }, 0);
+                                                        } catch(e){}
+                                                        
+                                                        let bankCash = 0;
+                                                        try { 
+                                                            const rec = JSON.parse(localStorage.getItem(getStoreKey('f_reconcile')));
+                                                            if (rec) {
+                                                                for (const t in rec) {
+                                                                    if (t !== '所有' && rec[t] && rec[t].bankCash !== undefined && rec[t].bankCash !== null) {
+                                                                        bankCash += parseFloat(rec[t].bankCash) || 0;
+                                                                    }
+                                                                }
+                                                                if (Object.keys(rec).length > 0 && rec.bankCash !== undefined && rec.bankCash !== null && !rec['所有'] && !rec['本人']) {
+                                                                    bankCash += parseFloat(rec.bankCash) || 0;
+                                                                }
+                                                            }
+                                                        } catch(e){}
+                                                        return Math.round(marketVal + bankCash) || 0;
+                                                    },
 
                                                     toggleAccountMenu() {
                                                         this.showAccountMenu = !this.showAccountMenu;
@@ -6192,7 +6317,7 @@
                                                         });
                                                     },
                                                     basicRebalanceSuggestion(item) {
-                                                        const total = this.totalMarketValue + this.currentCash;
+                                                        const total = this.grandTotalAssets;
                                                         if (total === 0 || !item.currentPrice || item.targetRatio == null) return { type: 'HOLD' };
 
                                                         const targetValue = total * (item.targetRatio / 100);
@@ -6338,6 +6463,7 @@ ${actionType} ${stock.name}
                                                         localStorage.setItem(this.getStorageKey('f_includeTxCosts'), this.includeTxCosts);
                                                         localStorage.setItem(this.getStorageKey('f_feeDiscount'), this.feeDiscount);
                                                         localStorage.setItem(this.getStorageKey('f_reconcile'), JSON.stringify(this.reconcileForm));
+                                                        localStorage.setItem('f_integration_checks', JSON.stringify(this.integrationChecks));
                                                     },
                                                     getStorageKey(key) {
                                                         if (this.activeAccountId === "main") return key;
@@ -6621,7 +6747,7 @@ ${actionType} ${stock.name}
                                                         this.fetchStockInfo(stock);
                                                     },
                                                     calculateCurrentRatio(item) {
-                                                        const t = this.totalMarketValue + this.currentCash;
+                                                        const t = this.grandTotalAssets;
                                                         return t === 0 ? 0 : ((item.shares * (item.currentPrice || 0) / t) * 100).toFixed(1);
                                                     },
                                                     getStockAvgPriceTwd(item) {
@@ -6633,8 +6759,11 @@ ${actionType} ${stock.name}
                                                     getBuyFee(code, shares, priceTwd) {
                                                         const isUs = String(code).trim().toLowerCase().match(/^[a-z]+$/i);
                                                         if (isUs || String(code).toUpperCase() === 'AU9901') return 0;
-
-                                                        return Math.round(shares * priceTwd * 0.001425);
+                                                        
+                                                        const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
+                                                        // 台股手續費計算 (通常無條件捨去或四捨五入，這裡採用 floor 避免超收)
+                                                        const fee = Math.floor(shares * priceTwd * 0.001425 * discountRate);
+                                                        return Math.max(1, fee); // 至少 1 元，有些券商有 20 元低收，但不一定
                                                     },
                                                     getStockTotalCost(item) {
                                                         if (!item.shares || !item.avgPrice) return 0;
@@ -6643,7 +6772,9 @@ ${actionType} ${stock.name}
                                                         if (isUs || String(item.code).toUpperCase() === 'AU9901') {
                                                             return Math.round(item.shares * avgTwd);
                                                         }
-                                                        return Math.round(item.shares * avgTwd * 1.001425);
+                                                        const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
+                                                        const feeRate = 0.001425 * discountRate;
+                                                        return Math.round(item.shares * avgTwd * (1 + feeRate));
                                                     },
                                                     getStockMarketValue(item) {
                                                         if (!item.shares || !item.currentPrice) return 0;
@@ -6654,10 +6785,11 @@ ${actionType} ${stock.name}
                                                             return Math.round(grossValue);
                                                         }
 
-                                                        const sellFee = Math.round(grossValue * 0.001425);
+                                                        const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
+                                                        const sellFee = Math.floor(grossValue * 0.001425 * discountRate);
                                                         const isEtf = String(item.code).match(/^00[0-9]{2}/);
                                                         const taxRate = isEtf ? 0.001 : 0.003;
-                                                        const sellTax = Math.round(grossValue * taxRate);
+                                                        const sellTax = Math.floor(grossValue * taxRate);
 
                                                         return Math.round(grossValue - sellFee - sellTax);
                                                     },
