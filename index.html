@@ -634,11 +634,11 @@
                     <span class="text-xl"></span>
                     <h2 class="text-xl font-900 text-[#5c544d] tracking-tight">新增主帳戶 / 使用者</h2>
                 </div>
-                <p class="text-xs font-bold text-[#8a817c] mb-6">建立獨立的投資主帳戶（例：個人美股專用、老爸台幣帳戶）</p>
+                <p class="text-xs font-bold text-[#8a817c] mb-6">建立獨立的投資主帳戶</p>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-bold text-[#8a817c] mb-1">主帳戶名稱</label>
-                        <input v-model="newAccount.name" type="text" placeholder="例：老爸台幣帳戶、美股專用帳戶"
+                        <input v-model="newAccount.name" type="text" placeholder="輸入帳戶名稱"
                             class="w-full bg-white border border-[#e5e0d8] rounded-xl px-4 py-2.5 text-sm font-bold text-[#5c544d] outline-none focus:border-[#8b9d83]">
                     </div>
                     <div>
@@ -4382,8 +4382,9 @@
                                                     let safeUsdtwdRate = 32.5;
 
                                                     try {
-                                                        safeStocks = JSON.parse(localStorage.getItem(getStorageKey('f_data'))) || [];
-                                                        if (!safeStocks.length && safeActiveAccountId !== 'main') {
+                                                        const rawStocks = localStorage.getItem(getStorageKey('f_data'));
+                                                        safeStocks = JSON.parse(rawStocks) || [];
+                                                        if (rawStocks === null && safeActiveAccountId !== 'main') {
                                                             const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
                                                             if (Array.isArray(legacyStocks) && legacyStocks.length) {
                                                                 safeStocks = legacyStocks;
@@ -4393,8 +4394,9 @@
                                                         safeStocks.forEach(s => { s.owner = safeActiveAccountName; });
                                                     } catch (e) { }
                                                     try {
-                                                        safeLogs = JSON.parse(localStorage.getItem(getStorageKey('f_deps'))) || [];
-                                                        if (!safeLogs.length && safeActiveAccountId !== 'main') {
+                                                        const rawLogs = localStorage.getItem(getStorageKey('f_deps'));
+                                                        safeLogs = JSON.parse(rawLogs) || [];
+                                                        if (rawLogs === null && safeActiveAccountId !== 'main') {
                                                             const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
                                                             if (Array.isArray(legacyLogs) && legacyLogs.length) {
                                                                 safeLogs = legacyLogs;
@@ -5959,8 +5961,9 @@
                                                         safeReconcile[activeAccountName] = { securitiesCost: 0, bankCash: 0 };
 
                                                         try {
-                                                            safeStocks = JSON.parse(localStorage.getItem(getStorageKey('f_data'))) || [];
-                                                            if (!safeStocks.length && this.activeAccountId !== 'main') {
+                                                            const rawStocks = localStorage.getItem(getStorageKey('f_data'));
+                                                            safeStocks = JSON.parse(rawStocks) || [];
+                                                            if (rawStocks === null && this.activeAccountId !== 'main') {
                                                                 const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
                                                                 if (Array.isArray(legacyStocks) && legacyStocks.length) {
                                                                     safeStocks = legacyStocks;
@@ -5970,8 +5973,9 @@
                                                             safeStocks.forEach(s => { s.owner = activeAccountName; });
                                                         } catch (e) { }
                                                         try {
-                                                            safeLogs = JSON.parse(localStorage.getItem(getStorageKey('f_deps'))) || [];
-                                                            if (!safeLogs.length && this.activeAccountId !== 'main') {
+                                                            const rawLogs = localStorage.getItem(getStorageKey('f_deps'));
+                                                            safeLogs = JSON.parse(rawLogs) || [];
+                                                            if (rawLogs === null && this.activeAccountId !== 'main') {
                                                                 const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
                                                                 if (Array.isArray(legacyLogs) && legacyLogs.length) {
                                                                     safeLogs = legacyLogs;
