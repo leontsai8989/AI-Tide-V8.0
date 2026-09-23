@@ -4383,17 +4383,38 @@
 
                                                     try {
                                                         safeStocks = JSON.parse(localStorage.getItem(getStorageKey('f_data'))) || [];
+                                                        if (!safeStocks.length && safeActiveAccountId !== 'main') {
+                                                            const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
+                                                            if (Array.isArray(legacyStocks) && legacyStocks.length) {
+                                                                safeStocks = legacyStocks;
+                                                                localStorage.setItem(getStorageKey('f_data'), JSON.stringify(safeStocks));
+                                                            }
+                                                        }
                                                         safeStocks.forEach(s => { s.owner = safeActiveAccountName; });
                                                     } catch (e) { }
                                                     try {
                                                         safeLogs = JSON.parse(localStorage.getItem(getStorageKey('f_deps'))) || [];
+                                                        if (!safeLogs.length && safeActiveAccountId !== 'main') {
+                                                            const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
+                                                            if (Array.isArray(legacyLogs) && legacyLogs.length) {
+                                                                safeLogs = legacyLogs;
+                                                                localStorage.setItem(getStorageKey('f_deps'), JSON.stringify(safeLogs));
+                                                            }
+                                                        }
                                                         safeLogs.forEach(l => { l.owner = safeActiveAccountName; });
                                                     } catch (e) { }
 
                                                     try {
                                                         const rawReconcile = localStorage.getItem(getStorageKey('f_reconcile'));
-                                                        if (rawReconcile) {
-                                                            const parsed = JSON.parse(rawReconcile);
+                                                        if (!rawReconcile && safeActiveAccountId !== 'main') {
+                                                            const legacyReconcile = localStorage.getItem('f_reconcile');
+                                                            if (legacyReconcile) {
+                                                                localStorage.setItem(getStorageKey('f_reconcile'), legacyReconcile);
+                                                            }
+                                                        }
+                                                        const effectiveRawReconcile = rawReconcile || (safeActiveAccountId !== 'main' ? localStorage.getItem(getStorageKey('f_reconcile')) : null);
+                                                        if (effectiveRawReconcile) {
+                                                            const parsed = JSON.parse(effectiveRawReconcile);
                                                             if (parsed.securitiesCost !== undefined && parsed.bankCash !== undefined) {
                                                                 // Migrate old structure
                                                                 safeReconcile = {
@@ -5939,17 +5960,38 @@
 
                                                         try {
                                                             safeStocks = JSON.parse(localStorage.getItem(getStorageKey('f_data'))) || [];
+                                                            if (!safeStocks.length && this.activeAccountId !== 'main') {
+                                                                const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
+                                                                if (Array.isArray(legacyStocks) && legacyStocks.length) {
+                                                                    safeStocks = legacyStocks;
+                                                                    localStorage.setItem(getStorageKey('f_data'), JSON.stringify(safeStocks));
+                                                                }
+                                                            }
                                                             safeStocks.forEach(s => { s.owner = activeAccountName; });
                                                         } catch (e) { }
                                                         try {
                                                             safeLogs = JSON.parse(localStorage.getItem(getStorageKey('f_deps'))) || [];
+                                                            if (!safeLogs.length && this.activeAccountId !== 'main') {
+                                                                const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
+                                                                if (Array.isArray(legacyLogs) && legacyLogs.length) {
+                                                                    safeLogs = legacyLogs;
+                                                                    localStorage.setItem(getStorageKey('f_deps'), JSON.stringify(safeLogs));
+                                                                }
+                                                            }
                                                             safeLogs.forEach(l => { l.owner = activeAccountName; });
                                                         } catch (e) { }
 
                                                         try {
                                                             const rawReconcile = localStorage.getItem(getStorageKey('f_reconcile'));
-                                                            if (rawReconcile) {
-                                                                safeReconcile = JSON.parse(rawReconcile);
+                                                            if (!rawReconcile && this.activeAccountId !== 'main') {
+                                                                const legacyReconcile = localStorage.getItem('f_reconcile');
+                                                                if (legacyReconcile) {
+                                                                    localStorage.setItem(getStorageKey('f_reconcile'), legacyReconcile);
+                                                                }
+                                                            }
+                                                            const effectiveRawReconcile = rawReconcile || (this.activeAccountId !== 'main' ? localStorage.getItem(getStorageKey('f_reconcile')) : null);
+                                                            if (effectiveRawReconcile) {
+                                                                safeReconcile = JSON.parse(effectiveRawReconcile);
                                                             }
                                                         } catch (e) { }
 
@@ -8056,19 +8098,6 @@ ${actionType} ${stock.name}
                                                         this.windowHeight = window.innerHeight;
                                                         this.windowWidth = window.innerWidth;
                                                     });
-
-                                                    // 強制一次性初始化：將主帳戶的現金歸零鎖定，並防止舊的 localStorage 快取干擾
-                                                    if (localStorage.getItem('f_force_my_cash_zero_v2') !== 'true') {
-                                                        const activeName = this.activeAccountName;
-                                                        if (!this.reconcileForm[activeName]) {
-                                                            this.reconcileForm[activeName] = { securitiesCost: 0, bankCash: 0 };
-                                                        }
-                                                        this.reconcileForm[activeName].isManualCash = true;
-                                                        this.reconcileForm[activeName].bankCash = 0;
-                                                        this.saveReconcileData();
-                                                        localStorage.setItem('f_force_my_cash_zero_v2', 'true');
-                                                        console.log('強制初始化主帳戶現金為 0 成功！');
-                                                    }
 
                                                     // Auto-clear 99999999 glitch
                                                     Object.keys(this.reconcileForm).forEach(t => {
