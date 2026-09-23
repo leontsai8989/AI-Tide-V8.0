@@ -548,7 +548,7 @@
             <!-- 帳戶清單 -->
             <div class="flex flex-col gap-1 mb-3">
                 <button v-for="acc in accounts" :key="acc.id"
-                    @click="activeAccountId = acc.id; switchAccount(); showAccountMenu = false"
+                    @click="switchAccount(acc.id); showAccountMenu = false"
                     :class="activeAccountId === acc.id ? 'bg-[#8b9d83] text-white' : 'bg-white text-[#5c544d] hover:bg-[#f0ebe1]'"
                     class="flex items-center justify-between w-full text-left px-3 py-2 rounded-lg text-xs font-black border border-[#e5e0d8] transition-all">
                     <span>{{ acc.name }}</span>
@@ -4344,26 +4344,38 @@
                                                         const rawHidden = localStorage.getItem("f_hidden_reconcile_accounts");
                                                         if (rawHidden) safeHiddenReconcile = JSON.parse(rawHidden);
                                                     } catch (e) { }
-                                                                                  try {
+                                                    try {
                                                         const rawAccounts = localStorage.getItem("f_accounts");
                                                         if (rawAccounts) {
                                                             const parsed = JSON.parse(rawAccounts);
-                                                            let modified = false;
-                                                            parsed.forEach((a, i) => {
-                                                                if (!a.id) {
-                                                                    a.id = a.name === "預設主帳戶" ? "main" : `legacy_${Date.now()}_${i}`;
-                                                                    modified = true;
-                                                                }
-                                                            });
-                                                            if (modified) {
-                                                                localStorage.setItem("f_accounts", JSON.stringify(parsed));
+                                                            if (Array.isArray(parsed) && parsed.length) {
+                                                                let modified = false;
+                                                                parsed.forEach((a, i) => {
+                                                                    if (!a.id) {
+                                                                        a.id = a.name === "預設主帳戶" ? "main" : `legacy_${Date.now()}_${i}`;
+                                                                        modified = true;
+                                                                    }
+                                                                    if (!a.name) {
+                                                                        a.name = `帳戶 ${i + 1}`;
+                                                                        modified = true;
+                                                                    }
+                                                                    if (a.currency !== 'USD' && a.currency !== 'TWD') {
+                                                                        a.currency = 'TWD';
+                                                                        modified = true;
+                                                                    }
+                                                                });
+                                                                if (modified) localStorage.setItem("f_accounts", JSON.stringify(parsed));
+                                                                safeAccounts = parsed;
                                                             }
-                                                            safeAccounts = parsed;
                                                         }
                                                         const rawActive = localStorage.getItem("f_active_account");
                                                         if (rawActive) safeActiveAccountId = rawActive;
                                                     } catch (e) { }
 
+                                                    if (!safeAccounts.some(a => a.id === safeActiveAccountId)) {
+                                                        safeActiveAccountId = (safeAccounts.find(a => a.id === 'main') || safeAccounts[0]).id;
+                                                        localStorage.setItem('f_active_account', safeActiveAccountId);
+                                                    }
                                                     const activeAccObj = safeAccounts.find(a => a.id === safeActiveAccountId);
                                                     const safeActiveAccountName = activeAccObj ? activeAccObj.name : "預設主帳戶";
 
@@ -4385,39 +4397,18 @@
                                                     try {
                                                         const rawStocks = localStorage.getItem(getStorageKey('f_data'));
                                                         safeStocks = JSON.parse(rawStocks) || [];
-                                                        if (rawStocks === null && safeActiveAccountId !== 'main') {
-                                                            const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
-                                                            if (Array.isArray(legacyStocks) && legacyStocks.length) {
-                                                                safeStocks = legacyStocks;
-                                                                localStorage.setItem(getStorageKey('f_data'), JSON.stringify(safeStocks));
-                                                            }
-                                                        }
                                                         safeStocks.forEach(s => { s.owner = safeActiveAccountName; });
                                                     } catch (e) { }
                                                     try {
                                                         const rawLogs = localStorage.getItem(getStorageKey('f_deps'));
                                                         safeLogs = JSON.parse(rawLogs) || [];
-                                                        if (rawLogs === null && safeActiveAccountId !== 'main') {
-                                                            const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
-                                                            if (Array.isArray(legacyLogs) && legacyLogs.length) {
-                                                                safeLogs = legacyLogs;
-                                                                localStorage.setItem(getStorageKey('f_deps'), JSON.stringify(safeLogs));
-                                                            }
-                                                        }
                                                         safeLogs.forEach(l => { l.owner = safeActiveAccountName; });
                                                     } catch (e) { }
 
                                                     try {
                                                         const rawReconcile = localStorage.getItem(getStorageKey('f_reconcile'));
-                                                        if (!rawReconcile && safeActiveAccountId !== 'main') {
-                                                            const legacyReconcile = localStorage.getItem('f_reconcile');
-                                                            if (legacyReconcile) {
-                                                                localStorage.setItem(getStorageKey('f_reconcile'), legacyReconcile);
-                                                            }
-                                                        }
-                                                        const effectiveRawReconcile = rawReconcile || (safeActiveAccountId !== 'main' ? localStorage.getItem(getStorageKey('f_reconcile')) : null);
-                                                        if (effectiveRawReconcile) {
-                                                            const parsed = JSON.parse(effectiveRawReconcile);
+                                                        if (rawReconcile) {
+                                                            const parsed = JSON.parse(rawReconcile);
                                                             if (parsed.securitiesCost !== undefined && parsed.bankCash !== undefined) {
                                                                 // Migrate old structure
                                                                 safeReconcile = {
@@ -4493,6 +4484,7 @@
                                                         integrationChecks: safeIntegrationChecks,
                                                         accounts: safeAccounts,
                                                         activeAccountId: safeActiveAccountId,
+                                                        loadedAccountId: safeActiveAccountId,
                                                         mobileListOpen: { deposit: false, dividend: false, sell: false },
                                                         // UI State
                                                         showReconcileDetailsModal: false,
@@ -4577,6 +4569,9 @@
                                                         hasRestorePoint: !!localStorage.getItem('stock_plan_restore_point') || !!localStorage.getItem('stock_plan_restore_history'),
                                                         saveState: 'saved',
                                                         saveError: '',
+                                                        saveTimer: null,
+                                                        pendingSaveTouchesData: false,
+                                                        isMarketPriceUpdate: false,
                                                         colors: ['#8b9d83', '#c38d8d', '#d1bfae', '#8a817c', '#a3a8b7', '#c2b280', '#b39b82', '#7a7067'],
                                                         toastMessage: '',
                                                         toastTimer: null,
@@ -4642,16 +4637,16 @@
                                                             if (this.currentView === 'dashboard') {
                                                                 this.$nextTick(() => { this.updateChart(); });
                                                             }
-                                                            this.saveDataToLocal(); // 自動儲存
+                                                            this.queueSaveData(!this.isMarketPriceUpdate);
                                                         },
                                                         deep: true
                                                     },
                                                     depositLogs: {
-                                                        handler() { this.saveDataToLocal(); }, // 存提款紀錄自動儲存
+                                                        handler() { this.queueSaveData(true); },
                                                         deep: true
                                                     },
                                                     reconcileForm: {
-                                                        handler() { this.saveReconcileData(); }, // 對帳表單自動儲存
+                                                        handler() { this.queueSaveData(true); },
                                                         deep: true
                                                     },
                                                     selectedTraders: {
@@ -4754,7 +4749,7 @@
                                                         return '籌碼中性';
                                                     },
                                                     totalCost() {
-                                                        return Math.round(this.stocks.reduce((sum, s) => sum + (s.shares * this.getStockAvgPriceTwd(s)), 0));
+                                                        return Math.round(this.stocks.reduce((sum, s) => sum + this.getStockTotalCost(s), 0));
                                                     },
                                                     totalProfit() {
                                                         return Math.round(this.stocks.reduce((sum, s) => sum + this.getStockProfit(s), 0));
@@ -5768,7 +5763,7 @@
                                                     recordSnapshot() {
                                                         try {
                                                             const today = DateTime.now().toFormat('yyyy-MM-dd');
-                                                            const marketValue = Math.round(this.stocks.reduce((s, st) => s + (st.shares * (st.currentPrice || 0)), 0));
+                                                            const marketValue = this.totalMarketValue;
                                                             const cashTotal = Math.round(this.traders.filter(t => t !== '所有').reduce((sum, t) => sum + ((this.reconcileForm[t] || {}).bankCash || 0), 0));
                                                             const totalAssets = marketValue + cashTotal;
                                                             const key = this.getStorageKey('f_history');
@@ -5938,14 +5933,17 @@
                                                         return Number(amount);
                                                     },
 
-                                                    switchAccount() {
-                                                        localStorage.setItem("f_active_account", this.activeAccountId);
+                                                    switchAccount(accountId = this.activeAccountId) {
+                                                        if (!this.accounts.some(acc => acc.id === accountId)) return;
+                                                        this.flushPendingSave();
+                                                        localStorage.setItem("f_active_account", accountId);
                                                         location.reload();
                                                     },
                                                     loadAccountData() {
+                                                        const targetAccountId = this.activeAccountId;
                                                         const getStorageKey = (key) => {
-                                                            if (this.activeAccountId === "main") return key;
-                                                            return `${key}_${this.activeAccountId}`;
+                                                            if (targetAccountId === "main") return key;
+                                                            return `${key}_${targetAccountId}`;
                                                         };
 
                                                         // Cleanup deprecated keys
@@ -5965,39 +5963,18 @@
                                                         try {
                                                             const rawStocks = localStorage.getItem(getStorageKey('f_data'));
                                                             safeStocks = JSON.parse(rawStocks) || [];
-                                                            if (rawStocks === null && this.activeAccountId !== 'main') {
-                                                                const legacyStocks = JSON.parse(localStorage.getItem('f_data') || '[]');
-                                                                if (Array.isArray(legacyStocks) && legacyStocks.length) {
-                                                                    safeStocks = legacyStocks;
-                                                                    localStorage.setItem(getStorageKey('f_data'), JSON.stringify(safeStocks));
-                                                                }
-                                                            }
                                                             safeStocks.forEach(s => { s.owner = activeAccountName; });
                                                         } catch (e) { }
                                                         try {
                                                             const rawLogs = localStorage.getItem(getStorageKey('f_deps'));
                                                             safeLogs = JSON.parse(rawLogs) || [];
-                                                            if (rawLogs === null && this.activeAccountId !== 'main') {
-                                                                const legacyLogs = JSON.parse(localStorage.getItem('f_deps') || '[]');
-                                                                if (Array.isArray(legacyLogs) && legacyLogs.length) {
-                                                                    safeLogs = legacyLogs;
-                                                                    localStorage.setItem(getStorageKey('f_deps'), JSON.stringify(safeLogs));
-                                                                }
-                                                            }
                                                             safeLogs.forEach(l => { l.owner = activeAccountName; });
                                                         } catch (e) { }
 
                                                         try {
                                                             const rawReconcile = localStorage.getItem(getStorageKey('f_reconcile'));
-                                                            if (!rawReconcile && this.activeAccountId !== 'main') {
-                                                                const legacyReconcile = localStorage.getItem('f_reconcile');
-                                                                if (legacyReconcile) {
-                                                                    localStorage.setItem(getStorageKey('f_reconcile'), legacyReconcile);
-                                                                }
-                                                            }
-                                                            const effectiveRawReconcile = rawReconcile || (this.activeAccountId !== 'main' ? localStorage.getItem(getStorageKey('f_reconcile')) : null);
-                                                            if (effectiveRawReconcile) {
-                                                                safeReconcile = JSON.parse(effectiveRawReconcile);
+                                                            if (rawReconcile) {
+                                                                safeReconcile = JSON.parse(rawReconcile);
                                                             }
                                                         } catch (e) { }
 
@@ -6013,6 +5990,7 @@
                                                             if (storedBias !== null && storedBias !== 'null') safeManualBias = Number(storedBias);
                                                         } catch (e) { }
 
+                                                        this.loadedAccountId = targetAccountId;
                                                         this.stocks = safeStocks;
                                                         this.depositLogs = safeLogs;
                                                         this.traders = safeTraders;
@@ -6041,12 +6019,43 @@
                                                         if (!this.editAccountName.trim()) return alert("名稱不能為空");
                                                         const acc = this.accounts.find(a => a.id === this.editingAccountId);
                                                         if (acc) {
+                                                            this.flushPendingSave();
+                                                            const oldName = acc.name;
+                                                            const newName = this.editAccountName.trim();
+                                                            const nameChanged = oldName !== newName;
                                                             const currencyChanged = acc.currency !== this.editAccountCurrency;
-                                                            acc.name = this.editAccountName.trim();
+                                                            if (nameChanged) {
+                                                                const keyFor = (key) => acc.id === 'main' ? key : `${key}_${acc.id}`;
+                                                                const migrateOwners = (key) => {
+                                                                    try {
+                                                                        const rows = JSON.parse(localStorage.getItem(keyFor(key)) || '[]');
+                                                                        if (!Array.isArray(rows)) return;
+                                                                        rows.forEach(row => { if (!row.owner || row.owner === oldName) row.owner = newName; });
+                                                                        localStorage.setItem(keyFor(key), JSON.stringify(rows));
+                                                                    } catch (e) { }
+                                                                };
+                                                                const migrateNamedObject = (key) => {
+                                                                    try {
+                                                                        const value = JSON.parse(localStorage.getItem(keyFor(key)) || '{}');
+                                                                        if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+                                                                        if (Object.prototype.hasOwnProperty.call(value, oldName)) {
+                                                                            if (!Object.prototype.hasOwnProperty.call(value, newName)) value[newName] = value[oldName];
+                                                                            delete value[oldName];
+                                                                            localStorage.setItem(keyFor(key), JSON.stringify(value));
+                                                                        }
+                                                                    } catch (e) { }
+                                                                };
+                                                                migrateOwners('f_data');
+                                                                migrateOwners('f_deps');
+                                                                migrateNamedObject('f_reconcile');
+                                                                migrateNamedObject('f_global_costs');
+                                                                localStorage.setItem(keyFor('f_traders'), JSON.stringify([newName]));
+                                                            }
+                                                            acc.name = newName;
                                                             if (acc.id !== "main") acc.currency = this.editAccountCurrency;
                                                             localStorage.setItem("f_accounts", JSON.stringify(this.accounts));
 
-                                                            if (this.activeAccountId === acc.id && currencyChanged) window.location.reload();
+                                                            if (this.loadedAccountId === acc.id && (nameChanged || currencyChanged)) window.location.reload();
                                                         }
                                                         this.editingAccountId = null;
                                                     },
@@ -6060,7 +6069,7 @@
                                                         const keysToRemove = [];
                                                         for (let i = 0; i < localStorage.length; i++) {
                                                             const key = localStorage.key(i);
-                                                            if (key.endsWith(`_${acc.id}`)) {
+                                                            if (key && key.startsWith('f_') && key.endsWith(`_${acc.id}`)) {
                                                                 keysToRemove.push(key);
                                                             }
                                                         }
@@ -6070,18 +6079,17 @@
                                                         localStorage.setItem("f_accounts", JSON.stringify(this.accounts));
 
                                                         if (this.activeAccountId === acc.id) {
-                                                            this.activeAccountId = "main";
-                                                            this.switchAccount();
+                                                            this.switchAccount("main");
                                                         }
                                                     },
 
                                                     createAccount() {
-                                                        if (!this.newAccount.name) return alert("請輸入帳戶名稱");
-                                                        const newId = "acc_" + Date.now();
-                                                        this.accounts.push({ id: newId, name: this.newAccount.name, currency: this.newAccount.currency });
+                                                        const accountName = this.newAccount.name.trim();
+                                                        if (!accountName) return alert("請輸入帳戶名稱");
+                                                        const newId = `acc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                                        this.accounts.push({ id: newId, name: accountName, currency: this.newAccount.currency });
                                                         localStorage.setItem("f_accounts", JSON.stringify(this.accounts));
 
-                                                        const accountName = this.newAccount.name.trim();
                                                         localStorage.setItem("f_data_" + newId, JSON.stringify([]));
                                                         localStorage.setItem("f_deps_" + newId, JSON.stringify([]));
                                                         localStorage.setItem("f_history_" + newId, JSON.stringify([]));
@@ -6094,8 +6102,7 @@
                                                         localStorage.setItem("f_feeDiscount_" + newId, '10');
                                                         localStorage.setItem("f_traders_" + newId, JSON.stringify([accountName]));
 
-                                                        this.activeAccountId = newId;
-                                                        this.switchAccount();
+                                                        this.switchAccount(newId);
                                                     },
 
                                                     getTraderAutoCash(t) {
@@ -6647,10 +6654,13 @@
                                                     async refreshStockPrices() {
                                                         if (this.stockPriceRefreshInProgress) return;
                                                         this.stockPriceRefreshInProgress = true;
+                                                        this.isMarketPriceUpdate = true;
                                                         try {
                                                             await Promise.allSettled(this.stocks.map(stock => this.fetchStockInfo(stock)));
                                                         } finally {
+                                                            this.isMarketPriceUpdate = false;
                                                             this.stockPriceRefreshInProgress = false;
+                                                            this.queueSaveData(false);
                                                         }
                                                     },
                                                     async fetchStockInfo(stock) {
@@ -6664,7 +6674,7 @@
                                                             if (!stock.name || stock.name === 'SYNC...') {
                                                                 stock.name = stock.code || '未上市股票';
                                                             }
-                                                            this.saveData();
+                                                            this.queueSaveData(!this.isMarketPriceUpdate);
                                                             return;
                                                         }
                                                         if (String(stock.code || '').trim().toUpperCase() === 'AU9901') {
@@ -6718,12 +6728,12 @@
                                                                 stock.status = 'ok';
                                                                 stock.errorMsg = '';
 
-                                                                this.saveData(); return;
+                                                                this.queueSaveData(!this.isMarketPriceUpdate); return;
                                                             } catch (e) {
                                                                 console.error('AU9901 雙軌抓取失敗:', e);
                                                                 stock.status = 'error';
                                                                 stock.errorMsg = '黃金連線失敗';
-                                                                this.saveData(); return;
+                                                                this.queueSaveData(!this.isMarketPriceUpdate); return;
                                                             }
                                                         }
 
@@ -6813,12 +6823,12 @@
                                                             } else {
                                                                 throw new Error('No price found');
                                                             }
-                                                            this.saveData();
+                                                            this.queueSaveData(!this.isMarketPriceUpdate);
                                                         } catch (e) {
                                                             console.error('Fetch Error:', e);
                                                             if (stock.currentPrice) stock.status = 'error';
                                                             else { stock.status = 'error'; stock.errorMsg = '連線失敗'; }
-                                                            this.saveData();
+                                                            this.queueSaveData(!this.isMarketPriceUpdate);
                                                         }
                                                     },
                                                     updateChart() {
@@ -7039,16 +7049,29 @@ ${actionType} ${stock.name}
                                                             alert(`已完成 ${count} 筆策略交易一鍵執行對帳！`);
                                                         }
                                                     },
-                                                    saveDataToLocal() {
+                                                    queueSaveData(touchUpdatedAt = true) {
+                                                        this.pendingSaveTouchesData = this.pendingSaveTouchesData || touchUpdatedAt;
+                                                        if (this.saveTimer) clearTimeout(this.saveTimer);
+                                                        this.saveState = 'saving';
+                                                        this.saveTimer = setTimeout(() => this.flushPendingSave(), 180);
+                                                    },
+                                                    flushPendingSave() {
+                                                        if (this.saveTimer) clearTimeout(this.saveTimer);
+                                                        this.saveTimer = null;
+                                                        const touchUpdatedAt = this.pendingSaveTouchesData;
+                                                        this.pendingSaveTouchesData = false;
+                                                        this.saveDataToLocal(touchUpdatedAt);
+                                                    },
+                                                    saveDataToLocal(touchUpdatedAt = true) {
                                                         this.saveState = 'saving';
                                                         try {
-                                                            this.localUpdatedAt = DateTime.now().toISO();
+                                                            if (touchUpdatedAt) this.localUpdatedAt = DateTime.now().toISO();
                                                             localStorage.setItem(this.getStorageKey('f_data'), JSON.stringify(this.stocks));
                                                             localStorage.setItem(this.getStorageKey('f_deps'), JSON.stringify(this.depositLogs));
                                                             localStorage.setItem('f_indices', JSON.stringify(this.indices));
                                                             localStorage.setItem(this.getStorageKey('f_manual_bias'), this.manualBias);
                                                             localStorage.setItem('f_usdtwd_rate', this.usdtwdRate);
-                                                            localStorage.setItem('f_updated_at', this.localUpdatedAt);
+                                                            if (touchUpdatedAt) localStorage.setItem('f_updated_at', this.localUpdatedAt);
                                                             localStorage.setItem(this.getStorageKey('f_includeTxCosts'), this.includeTxCosts);
                                                             localStorage.setItem(this.getStorageKey('f_feeDiscount'), this.feeDiscount);
                                                             localStorage.setItem(this.getStorageKey('f_reconcile'), JSON.stringify(this.reconcileForm));
@@ -7062,12 +7085,15 @@ ${actionType} ${stock.name}
                                                         }
                                                     },
                                                     getStorageKey(key) {
-                                                        if (this.activeAccountId === "main") return key;
-                                                        return `${key}_${this.activeAccountId}`;
+                                                        const accountId = this.loadedAccountId || this.activeAccountId || "main";
+                                                        if (accountId === "main") return key;
+                                                        return `${key}_${accountId}`;
                                                     },
-                                                    saveData() {
-                                                        this.localUpdatedAt = DateTime.now().toISO();
-                                                        this.saveDataToLocal();
+                                                    saveData(touchUpdatedAt = true) {
+                                                        if (this.saveTimer) clearTimeout(this.saveTimer);
+                                                        this.saveTimer = null;
+                                                        this.pendingSaveTouchesData = false;
+                                                        this.saveDataToLocal(touchUpdatedAt);
                                                     },
                                                     toggleTrader(t) {
                                                         if (t === '所有') {
@@ -7116,10 +7142,11 @@ ${actionType} ${stock.name}
                                                         localStorage.setItem(key, JSON.stringify(this.otherAccountsReconcile[accountId]));
                                                     },
                                                     saveReconcileData() {
-                                                        localStorage.setItem(this.getStorageKey('f_reconcile'), JSON.stringify(this.reconcileForm));
+                                                        this.queueSaveData(true);
                                                     },
                                                     saveGlobalCosts() {
                                                         localStorage.setItem(this.getStorageKey('f_global_costs'), JSON.stringify(this.globalCosts));
+                                                        this.queueSaveData(true);
                                                     },
                                                     addQuickDeposit(type) {
                                                         const isQuickDeposit = (type === 'deposit' || type === 'withdraw');
@@ -7351,14 +7378,11 @@ ${actionType} ${stock.name}
                                                         return t === 0 ? 0 : ((item.shares * (item.currentPrice || 0) / t) * 100).toFixed(1);
                                                     },
                                                     getStockAvgPriceTwd(item) {
-                                                        if (item.currency === 'USD') {
-                                                            return this.normalizeToActiveCurrency(item.avgPrice, 'USD');
-                                                        }
-                                                        return item.avgPrice;
+                                                        return this.normalizeToActiveCurrency(item.avgPrice, item.currency || 'TWD');
                                                     },
                                                     getBuyFee(code, shares, priceTwd) {
                                                         const isUs = String(code).trim().toLowerCase().match(/^[a-z]+$/i);
-                                                        if (isUs || String(code).toUpperCase() === 'AU9901') return 0;
+                                                        if (!this.includeTxCosts || isUs || String(code).toUpperCase() === 'AU9901') return 0;
                                                         
                                                         const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
                                                         // 台股手續費計算 (通常無條件捨去或四捨五入，這裡採用 floor 避免超收)
@@ -7369,7 +7393,7 @@ ${actionType} ${stock.name}
                                                         if (!item.shares || !item.avgPrice) return 0;
                                                         const avgTwd = this.getStockAvgPriceTwd(item);
                                                         const isUs = String(item.code).trim().toLowerCase().match(/^[a-z]+$/i);
-                                                        if (isUs || String(item.code).toUpperCase() === 'AU9901') {
+                                                        if (!this.includeTxCosts || isUs || String(item.code).toUpperCase() === 'AU9901') {
                                                             return Math.round(item.shares * avgTwd);
                                                         }
                                                         const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
@@ -7379,7 +7403,7 @@ ${actionType} ${stock.name}
                                                     getSellNetAmount(code, shares, priceInAccountCurrency, currency = 'TWD') {
                                                         const grossValue = Number(shares || 0) * Number(priceInAccountCurrency || 0);
                                                         const isUs = currency === 'USD' || String(code).trim().match(/^[a-z]+$/i);
-                                                        if (isUs || String(code).toUpperCase() === 'AU9901') return Math.round(grossValue);
+                                                        if (!this.includeTxCosts || isUs || String(code).toUpperCase() === 'AU9901') return Math.round(grossValue);
                                                         const discountRate = this.feeDiscount ? (Number(this.feeDiscount) / 10) : 1;
                                                         const sellFee = Math.floor(grossValue * 0.001425 * discountRate);
                                                         const isEtf = String(code).match(/^00[0-9]{2}/);
@@ -7788,9 +7812,10 @@ ${actionType} ${stock.name}
                                                     },
                                                     collectBackupStorage() {
                                                         const storage = {};
+                                                        const privateKeys = new Set(['f_api_token', 'f_jsonbin_key', 'f_jsonbin_id', 'f_last_cloud_upload_at', 'f_last_cloud_download_at']);
                                                         for (let i = 0; i < localStorage.length; i++) {
                                                             const key = localStorage.key(i);
-                                                            if (key && key.startsWith('f_') && key !== 'f_api_token' && key !== 'f_jsonbin_key') {
+                                                            if (key && key.startsWith('f_') && !privateKeys.has(key)) {
                                                                 storage[key] = localStorage.getItem(key);
                                                             }
                                                         }
@@ -7830,7 +7855,42 @@ ${actionType} ${stock.name}
                                                         this.downloadBackupData(data, label);
                                                         this.showToast('完整備份已下載');
                                                     },
+                                                    validateBackupData(data, allowLegacy = false) {
+                                                        if (allowLegacy && data && data.version !== 2) {
+                                                            if (data.stocks !== undefined && !Array.isArray(data.stocks)) throw new Error('舊版持股格式錯誤');
+                                                            if (data.depositLogs !== undefined && !Array.isArray(data.depositLogs)) throw new Error('舊版流水格式錯誤');
+                                                            if (data.reconcileForm !== undefined && (!data.reconcileForm || typeof data.reconcileForm !== 'object' || Array.isArray(data.reconcileForm))) throw new Error('舊版對帳格式錯誤');
+                                                            return true;
+                                                        }
+                                                        if (!data || data.version !== 2 || !data.storage || typeof data.storage !== 'object' || Array.isArray(data.storage)) {
+                                                            throw new Error('備份格式不符');
+                                                        }
+                                                        const storage = data.storage;
+                                                        for (const [key, value] of Object.entries(storage)) {
+                                                            if (!key.startsWith('f_') || typeof value !== 'string') throw new Error(`不允許的備份欄位：${key}`);
+                                                        }
+                                                        let accounts = [{ id: 'main', name: '預設主帳戶', currency: 'TWD' }];
+                                                        if (storage.f_accounts) {
+                                                            accounts = JSON.parse(storage.f_accounts);
+                                                            if (!Array.isArray(accounts) || !accounts.length) throw new Error('帳戶清單為空');
+                                                        }
+                                                        const ids = new Set();
+                                                        for (const account of accounts) {
+                                                            if (!account || typeof account.id !== 'string' || !account.id.trim() || ids.has(account.id)) throw new Error('帳戶 ID 無效或重複');
+                                                            ids.add(account.id);
+                                                            const suffix = account.id === 'main' ? '' : `_${account.id}`;
+                                                            const stocks = JSON.parse(storage[`f_data${suffix}`] || '[]');
+                                                            const logs = JSON.parse(storage[`f_deps${suffix}`] || '[]');
+                                                            const reconcile = JSON.parse(storage[`f_reconcile${suffix}`] || '{}');
+                                                            if (!Array.isArray(stocks) || !Array.isArray(logs) || !reconcile || typeof reconcile !== 'object' || Array.isArray(reconcile)) {
+                                                                throw new Error(`帳戶「${account.name || account.id}」資料格式錯誤`);
+                                                            }
+                                                        }
+                                                        if (storage.f_active_account && !ids.has(storage.f_active_account)) throw new Error('目前帳戶不存在於帳戶清單');
+                                                        return true;
+                                                    },
                                                     replaceLocalStorageData(data) {
+                                                        this.validateBackupData(data);
                                                         const storage = data.storage || {};
                                                         const keepKeys = new Set(['f_api_token', 'f_jsonbin_key', 'f_jsonbin_id', 'f_last_cloud_upload_at', 'f_last_cloud_download_at']);
                                                         const removeKeys = [];
@@ -7840,7 +7900,7 @@ ${actionType} ${stock.name}
                                                         }
                                                         removeKeys.forEach(key => localStorage.removeItem(key));
                                                         Object.keys(storage).forEach(key => {
-                                                            if (key === 'f_api_token' || key === 'f_jsonbin_key') return;
+                                                            if (keepKeys.has(key)) return;
                                                             localStorage.setItem(key, storage[key]);
                                                         });
                                                     },
@@ -7864,7 +7924,7 @@ ${actionType} ${stock.name}
                                                         if (!file) return;
                                                         try {
                                                             const data = JSON.parse(await file.text());
-                                                            if (data.version !== 2 || !data.storage || typeof data.storage !== 'object') throw new Error('格式不符');
+                                                            this.validateBackupData(data);
                                                             const summary = this.getBackupSummary(data);
                                                             if (!confirm(`即將用此備份覆蓋這台裝置的資料：\n\n${summary}\n\n確定繼續？`)) return;
                                                             this.createRestorePoint('匯入備份前');
@@ -7896,6 +7956,7 @@ ${actionType} ${stock.name}
                                                         }
                                                     },
                                                     applyCloudData(data) {
+                                                        this.validateBackupData(data, true);
                                                         if (data.version === 2 && data.storage) {
                                                             this.createRestorePoint('從雲端還原前');
                                                             this.replaceLocalStorageData(data);
@@ -7903,6 +7964,7 @@ ${actionType} ${stock.name}
                                                             window.location.reload();
                                                         } else {
                                                             // 舊版單一帳戶格式相容
+                                                            this.createRestorePoint('從舊版雲端資料還原前');
                                                             if (data.stocks) localStorage.setItem("f_data", JSON.stringify(data.stocks));
                                                             if (data.depositLogs) localStorage.setItem("f_deps", JSON.stringify(data.depositLogs));
                                                             if (data.reconcileForm) localStorage.setItem("f_reconcile", JSON.stringify(data.reconcileForm));
@@ -8047,6 +8109,7 @@ ${actionType} ${stock.name}
 
                                                             const result = await response.json();
                                                             if (result.record) {
+                                                                this.validateBackupData(result.record, true);
                                                                 const summary = this.getBackupSummary(result.record);
                                                                 const localTime = this.localUpdatedAt ? DateTime.fromISO(this.localUpdatedAt) : null;
                                                                 const cloudTime = result.record.updatedAt ? DateTime.fromISO(result.record.updatedAt) : null;
@@ -8087,7 +8150,12 @@ ${actionType} ${stock.name}
                                                     },
                                                     factoryReset() {
                                                         if (confirm(`警告：這將刪除所有設定、股票、紀錄！\n確定要恢復出廠設定嗎？`)) {
-                                                            localStorage.clear();
+                                                            const appKeys = [];
+                                                            for (let i = 0; i < localStorage.length; i++) {
+                                                                const key = localStorage.key(i);
+                                                                if (key && (key.startsWith('f_') || key.startsWith('stock_plan_'))) appKeys.push(key);
+                                                            }
+                                                            appKeys.forEach(key => localStorage.removeItem(key));
                                                             location.reload();
                                                         }
                                                     },
@@ -8113,15 +8181,6 @@ ${actionType} ${stock.name}
                                                         this.windowHeight = window.innerHeight;
                                                         this.windowWidth = window.innerWidth;
                                                     });
-
-                                                    // Auto-clear 99999999 glitch
-                                                    Object.keys(this.reconcileForm).forEach(t => {
-                                                        if (this.reconcileForm[t].bankCash >= 99999999 || this.reconcileForm[t].bankCash <= -99999999) {
-                                                            this.reconcileForm[t].bankCash = this.getTraderAutoCash(t);
-                                                            this.reconcileForm[t].isManualCash = false;
-                                                        }
-                                                    });
-                                                    this.saveReconcileData();
 
                                                     // Load globalCosts
                                                     try {
@@ -8152,14 +8211,15 @@ ${actionType} ${stock.name}
                                                     });
 
                                                     // 依據使用者需求，恢復成「全面手動輸入」模式
-                                                    if (localStorage.getItem('f_force_manual_cash_v4') !== 'true') {
+                                                    const manualCashMigrationKey = this.getStorageKey('f_force_manual_cash_v4');
+                                                    if (localStorage.getItem(manualCashMigrationKey) !== 'true') {
                                                         Object.keys(this.reconcileForm || {}).forEach(k => {
                                                             if (this.reconcileForm[k]) {
                                                                 this.reconcileForm[k].isManualCash = true;
                                                             }
                                                         });
                                                         this.saveReconcileData();
-                                                        localStorage.setItem('f_force_manual_cash_v4', 'true');
+                                                        localStorage.setItem(manualCashMigrationKey, 'true');
                                                         console.log('已恢復手動輸入現金模式！');
                                                     }
 
@@ -8187,6 +8247,10 @@ ${actionType} ${stock.name}
 
                                                     document.addEventListener('visibilitychange', () => {
                                                         if (!document.hidden) this.refreshStockPrices();
+                                                    });
+
+                                                    window.addEventListener('pagehide', () => {
+                                                        if (this.saveTimer || this.pendingSaveTouchesData) this.flushPendingSave();
                                                     });
 
                                                     this.$nextTick(() => {
