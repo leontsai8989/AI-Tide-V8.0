@@ -3228,8 +3228,9 @@
                                                                             <p class="text-[10px] text-[#a89f91] mb-2 leading-relaxed">輸入您的券商手續費折數 (例如 2.8 折請輸入 2.8)。若無折扣請填 10。<br>系統將以此自動計算買賣成本與預估淨值。</p>
                                                                             <input v-model="feeDiscount" type="number" step="0.1" min="0" max="10"
                                                                                 @change="saveData"
-                                                                                placeholder="預設: 6"
+                                                                                placeholder="預設: 10"
                                                                                 class="w-full bg-[#f0ebe1] border border-[#e5e0d8] rounded-lg px-3 py-2 text-xs font-mono text-[#5c544d] outline-none focus:border-indigo-500 focus:bg-[#faf9f5] transition-all">
+                                                                            <p class="text-[10px] text-[#a89f91] mt-2">美股手續費依券商方案不同，目前不自動計算。</p>
                                                                         </div>
 
                                                                         <div
@@ -4467,7 +4468,7 @@
                                                     } catch (e) { }
 
                                                     let safeIncludeTxCosts = true;
-                                                    let safeFeeDiscount = 6;
+                                                    let safeFeeDiscount = 10;
                                                     try {
                                                         const rawIncludeTx = localStorage.getItem(getStorageKey('f_includeTxCosts'));
                                                         if (rawIncludeTx !== null) safeIncludeTxCosts = rawIncludeTx === 'true';
@@ -4547,6 +4548,7 @@
                                                         dragLog: null,
                                                         vixLoading: false,
                                                         marketDataLoading: false,
+                                                        stockPriceRefreshInProgress: false,
                                                         requestCache: {},
                                                         jsonbinKey: localStorage.getItem('f_jsonbin_key') || '',
                                                         jsonbinId: localStorage.getItem('f_jsonbin_id') || '',
@@ -6089,7 +6091,7 @@
                                                         }));
                                                         localStorage.setItem("f_manual_bias_" + newId, 'null');
                                                         localStorage.setItem("f_includeTxCosts_" + newId, 'true');
-                                                        localStorage.setItem("f_feeDiscount_" + newId, '6');
+                                                        localStorage.setItem("f_feeDiscount_" + newId, '10');
                                                         localStorage.setItem("f_traders_" + newId, JSON.stringify([accountName]));
 
                                                         this.activeAccountId = newId;
@@ -6578,7 +6580,7 @@
                                                     },
                                                     async fetchYahooChart(symbol) {
                                                         const chartTarget = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
-                                                        const resChart = await this.fetchData(chartTarget);
+                                                        const resChart = await this.fetchData(chartTarget, { ttl: 10000, timeout: 5000 });
                                                         const jChart = await resChart.json();
                                                         const result = jChart.chart && jChart.chart.result && jChart.chart.result[0];
                                                         if (!result) throw new Error(`No chart result for ${symbol}`);
@@ -6641,6 +6643,15 @@
                                                         ]);
 
                                                         this.marketDataLoading = false;
+                                                    },
+                                                    async refreshStockPrices() {
+                                                        if (this.stockPriceRefreshInProgress) return;
+                                                        this.stockPriceRefreshInProgress = true;
+                                                        try {
+                                                            await Promise.allSettled(this.stocks.map(stock => this.fetchStockInfo(stock)));
+                                                        } finally {
+                                                            this.stockPriceRefreshInProgress = false;
+                                                        }
                                                     },
                                                     async fetchStockInfo(stock) {
                                                         if (stock.isManualPrice) {
@@ -8161,15 +8172,22 @@ ${actionType} ${stock.name}
                                                     });
 
                                                     this.refreshMarketData();
-                                                    this.stocks.forEach(s => this.fetchStockInfo(s));
+                                                    this.refreshStockPrices();
 
                                                     // 延遲 5 秒後記錄今日資產快照（等市價更新後）
                                                     setTimeout(() => { this.recordSnapshot(); }, 5000);
 
                                                     setInterval(() => {
                                                         this.refreshMarketData();
-                                                        this.stocks.forEach(s => this.fetchStockInfo(s));
-                                                    }, 30000);
+                                                    }, 60000);
+
+                                                    setInterval(() => {
+                                                        this.refreshStockPrices();
+                                                    }, 15000);
+
+                                                    document.addEventListener('visibilitychange', () => {
+                                                        if (!document.hidden) this.refreshStockPrices();
+                                                    });
 
                                                     this.$nextTick(() => {
                                                         if (this.currentView === 'dashboard') {
